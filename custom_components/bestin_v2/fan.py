@@ -58,7 +58,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 
     sensors = []
 
-    fan_info = await api._ventilState()
+    fan_info = await api.get_ventil_state()
 
     if fan_info:
         sensors += [ BestinFan('ventil', fan_info['ventil'], api) ]
@@ -96,8 +96,8 @@ class BestinFan(FanEntity):
         if self._api is None:
             return
 
-        self._state = self._api._fan['ventil']
-        self._is_on = off2boolean(self._api._fan['ventil'])
+        self._state = self._api.fan['ventil']
+        self._is_on = off2boolean(self._api.fan['ventil'])
 
 
     @property
@@ -118,9 +118,9 @@ class BestinFan(FanEntity):
 
     async def async_turn_on(self, speed: Optional[str] = None, percentage: Optional[int] = None, preset_mode: Optional[str] = None, **kwargs: Any) -> None:
         """Turn on the fan."""
-        await self._api._ventilOnOff(self._name, 'on')
+        await self._api.ventil_on_off(self._name, 'on')
 
-        fan_info = await self._api._ventilState()
+        fan_info = await self._api.get_ventil_state()
 
         self._is_on  = off2boolean(fan_info['ventil'])
 
@@ -128,9 +128,9 @@ class BestinFan(FanEntity):
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the fan off."""
-        await self._api._ventilOnOff(self._name, 'off')
+        await self._api.ventil_on_off(self._name, 'off')
 
-        fan_info = await self._api._ventilState()
+        fan_info = await self._api.get_ventil_state()
 
         self._is_on  = off2boolean(fan_info['ventil'])
 
@@ -183,9 +183,9 @@ class BestinFan(FanEntity):
         """Set the preset mode of the fan."""
 
         if self._is_on:
-            await self._api._ventilOnOff(self._name, preset_mode)
+            await self._api.ventil_on_off(self._name, preset_mode)
 
-            fan_info = await self._api._ventilState()
+            fan_info = await self._api.get_ventil_state()
 
             self._is_on  = off2boolean(fan_info['ventil'])
 

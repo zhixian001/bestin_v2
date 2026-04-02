@@ -39,12 +39,12 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 
     api = hass.data[DOMAIN]["thermostat"][config_entry.entry_id]
 
-    units = api._thermostats
+    units = api.thermostats
 
     sensors = []
 
     for room in units:
-        sensors += [ BestinClimate(room, 'thermostat', api.isThermostateOn(room), api.getTargetTemp(room), api.getCurrTemp(room), api) ]
+        sensors += [ BestinClimate(room, 'thermostat', api.is_on(room), api.get_target_temp(room), api.get_current_temp(room), api) ]
 
     async_add_entities(sensors)
 
@@ -131,19 +131,16 @@ class BestinClimate(ClimateEntity):
 
     async def async_set_hvac_mode(self, hvac_mode):
         """Set new target hvac mode."""
-        rtn = {}
-
         if hvac_mode == HVACMode.HEAT:
-            await self._api.setHvacMode(self._room, 'on', self._target_temp)
+            await self._api.set_hvac_mode(self._room, 'on', self._target_temp)
         elif hvac_mode == HVACMode.OFF:
-            await self._api.setHvacMode(self._room, 'off', self._target_temp)
+            await self._api.set_hvac_mode(self._room, 'off', self._target_temp)
 
-        # 호출이후, 상태 반영
-        await self._api.thermostatState()
+        await self._api.fetch_state()
 
-        self._is_on       = HVACMode.OFF if self._api.isThermostateOn(self._room) == 'off' else HVACMode.HEAT
-        self._target_temp = self._api.getTargetTemp(self._room)
-        self._cur_temp    = self._api.getCurrTemp(self._room)
+        self._is_on       = HVACMode.OFF if self._api.is_on(self._room) == 'off' else HVACMode.HEAT
+        self._target_temp = self._api.get_target_temp(self._room)
+        self._cur_temp    = self._api.get_current_temp(self._room)
 
 
 
@@ -166,24 +163,22 @@ class BestinClimate(ClimateEntity):
             if temperature is None:
                 return
 
-            await self._api.setHvacTemperature(self._room, 'on', temperature, self._cur_temp)
+            await self._api.set_hvac_temperature(self._room, 'on', temperature, self._cur_temp)
 
-            # 호출이후, 상태 반영
-            await self._api.thermostatState()
+            await self._api.fetch_state()
 
-            self._is_on       = HVACMode.OFF if self._api.isThermostateOn(self._room) == 'off' else HVACMode.HEAT
-            self._target_temp = self._api.getTargetTemp(self._room)
-            self._cur_temp    = self._api.getCurrTemp(self._room)
+            self._is_on       = HVACMode.OFF if self._api.is_on(self._room) == 'off' else HVACMode.HEAT
+            self._target_temp = self._api.get_target_temp(self._room)
+            self._cur_temp    = self._api.get_current_temp(self._room)
 
     async def async_update(self):
         """Get the latest state of the sensor."""
         if self._api is None:
             return
 
-        #상태 반영
-        self._is_on       = HVACMode.OFF if self._api.isThermostateOn(self._room) == 'off' else HVACMode.HEAT
-        self._target_temp = self._api.getTargetTemp(self._room)
-        self._cur_temp    = self._api.getCurrTemp(self._room)
+        self._is_on       = HVACMode.OFF if self._api.is_on(self._room) == 'off' else HVACMode.HEAT
+        self._target_temp = self._api.get_target_temp(self._room)
+        self._cur_temp    = self._api.get_current_temp(self._room)
 
     @property
     def extra_state_attributes(self):

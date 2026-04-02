@@ -48,23 +48,23 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 
 
     #= outlet START ========================================================
-    if DT_OUTLET in api._devices:
+    if DT_OUTLET in api.devices:
         for r in room:
             if r == 'l': continue
 
-            for key in room[r]._outlets:
+            for key in room[r].outlets:
                 #standby power switch
                 #if (key == 'switch1') and ('/' in room[r]._outlets[key]):
                 # 대기전력 차단 스위치
-                sensors += [BestinOutletSwitch(r, key, room[r]._outlets[key], room[r], True)]
+                sensors += [BestinOutletSwitch(r, key, room[r].outlets[key], room[r], True)]
 
-                sensors += [BestinOutletSwitch(r, key, room[r]._outlets[key], room[r])]
+                sensors += [BestinOutletSwitch(r, key, room[r].outlets[key], room[r])]
     #= outlet END ==========================================================
 
 
     #= gas START ===========================================================
-    if DT_GAS in api._devices:
-        await api._gasState()
+    if DT_GAS in api.devices:
+        await api.get_gas_state()
 
         sensors += [BestinGasSwitch(api)]
     #= gas END =============================================================
@@ -90,8 +90,8 @@ class BestinGasSwitch(SwitchEntity):
     def __init__(self, api):
         self._api       = api
 
-        self._state     = open2on(self._api._gas['gas1'])
-        self._is_on     = open2on(self._api._gas['gas1'])
+        self._state     = open2on(self._api.gas['gas1'])
+        self._is_on     = open2on(self._api.gas['gas1'])
 
         self.data       = {}
 
@@ -121,8 +121,8 @@ class BestinGasSwitch(SwitchEntity):
         if self._api is None:
             return
 
-        self._state     = open2on(self._api._gas['gas1'])
-        self._is_on     = open2on(self._api._gas['gas1'])
+        self._state     = open2on(self._api.gas['gas1'])
+        self._is_on     = open2on(self._api.gas['gas1'])
 
 
     @property
@@ -147,10 +147,10 @@ class BestinGasSwitch(SwitchEntity):
 
     async def async_turn_off(self, **kwargs):
         """Turn the switch off."""
-        await self._api._gasLock()
+        await self._api.gas_lock()
 
-        self._state     = open2on(self._api._gas['gas1'])
-        self._is_on     = open2on(self._api._gas['gas1'])
+        self._state     = open2on(self._api.gas['gas1'])
+        self._is_on     = open2on(self._api.gas['gas1'])
 
 
     @property
@@ -170,8 +170,8 @@ class BestinGaslockSwitch(CoordinatorEntity, SwitchEntity):
 
         self._api       = api
 
-        self._state     = 'on' if self._api._gas['gas1'] == 'open' else 'off'
-        self._is_on     = 'on' if self._api._gas['gas1'] == 'open' else 'off'
+        self._state     = 'on' if self._api.gas['gas1'] == 'open' else 'off'
+        self._is_on     = 'on' if self._api.gas['gas1'] == 'open' else 'off'
 
         self.data       = {}
 
@@ -230,7 +230,7 @@ class BestinGaslockSwitch(CoordinatorEntity, SwitchEntity):
 
     async def async_turn_off(self, **kwargs):
         """Turn the switch off."""
-        await self._api._gasLock()
+        await self._api.gas_lock()
 
         self._state     = open2on(self.coordinator.data['gas1'])
         self._is_on     = open2on(self.coordinator.data['gas1'])
@@ -300,14 +300,14 @@ class BestinOutletSwitch(SwitchEntity):
 
         data['Device Room']   = self._room
         data['Device Type']   = self._name
-        data['Device State']  = self._api.isOutletOn(self._name)
+        data['Device State']  = self._api.is_outlet_on(self._name)
 
         return data
 
     @property
     def is_on(self):
         """If the switch is currently on or off."""
-        state = self._api.isOutletOn(self._name)
+        state = self._api.is_outlet_on(self._name)
 
         if self._standby:
             value = 'on' if state.split('/')[0] == 'set' else 'off'
@@ -319,7 +319,7 @@ class BestinOutletSwitch(SwitchEntity):
     @property
     def state(self):
         """If the switch is currently on or off."""
-        state = self._api.isOutletOn(self._name)
+        state = self._api.is_outlet_on(self._name)
 
         if self._standby:
             value = 'on' if state.split('/')[0] == 'set' else 'off'
@@ -332,20 +332,20 @@ class BestinOutletSwitch(SwitchEntity):
     async def async_turn_on(self, **kwargs):
         """Turn the switch on."""
         if self._standby:
-            await self._api.outletSet(self._name)
+            await self._api.outlet_set(self._name)
         else:
-            await self._api.outletOn(self._name)
+            await self._api.outlet_on(self._name)
 
-        await self._api.outletState()
+        await self._api.fetch_outlet_state()
 
     async def async_turn_off(self, **kwargs):
         """Turn the switch off."""
         if self._standby:
-            await self._api.outletUnset(self._name)
+            await self._api.outlet_unset(self._name)
         else:
-            await self._api.outletOff(self._name)
+            await self._api.outlet_off(self._name)
 
-        await self._api.outletState()
+        await self._api.fetch_outlet_state()
 
     @property
     def device_info(self):
@@ -363,8 +363,8 @@ class BestinDebugSwitch(SwitchEntity):
     def __init__(self, api):
         self._api       = api
 
-        self._state     = 'on' if api._debug else 'off'
-        self._is_on     = 'on' if api._debug else 'off'
+        self._state     = 'on' if api.debug else 'off'
+        self._is_on     = 'on' if api.debug else 'off'
 
     @property
     def unique_id(self):
@@ -389,15 +389,15 @@ class BestinDebugSwitch(SwitchEntity):
 
     def turn_on(self, **kwargs):
         """Turn the switch on."""
-        self._api._debugOn()
-        self._is_on = 'on' if self._api._debug else 'off'
-        self._state = 'on' if self._api._debug else 'off'
+        self._api.set_debug(True)
+        self._is_on = 'on' if self._api.debug else 'off'
+        self._state = 'on' if self._api.debug else 'off'
 
     def turn_off(self, **kwargs):
         """Turn the switch off."""
-        self._api._debugOff()
-        self._is_on = 'on' if self._api._debug else 'off'
-        self._state = 'on' if self._api._debug else 'off'
+        self._api.set_debug(False)
+        self._is_on = 'on' if self._api.debug else 'off'
+        self._state = 'on' if self._api.debug else 'off'
 
     @property
     def is_on(self):

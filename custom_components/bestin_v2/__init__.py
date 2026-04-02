@@ -19,9 +19,9 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.util import Throttle
 
 from .const import DOMAIN, CONF_URL, CONF_UUID, CONF_ROOMS, DT_LIGHT, DT_OUTLET, DT_CLIMATE, DT_FAN, DT_GAS, DT_ENERGY
-from .bestinAPIv2 import BestinAPIv2 as API
-from .bestinAPIv2 import BestinRoom
-from .bestinAPIv2 import BestinThermostat
+from .bestinAPIv2 import BestinApiService as API
+from .bestinAPIv2 import RoomService
+from .bestinAPIv2 import ThermostatService
 
 PLATFORMS = ['sensor', 'light', 'climate', 'switch', 'fan', 'button']
 
@@ -53,42 +53,40 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
     api = API(hass, entry)
 
-    #bestin_token.json check
-    if not api._isAccessTokenInfo():
+    if not api.is_token_available():
         _LOGGER.error(f'[{DOMAIN}] bestin_token.json is not exist.')
-        ret = await api._login()
+        await api.do_login()
 
-    await api._login()
+    await api.do_login()
 
     hass.data[DOMAIN]["api"][entry.entry_id] = api
 
     try:
-        await api._getFeatures()
+        await api.get_features()
     except Exception as ex:
-        _LOGGER.error(f'[{DOMAIN}] api._getFeatures() Exception. -> %s', ex)
+        _LOGGER.error(f'[{DOMAIN}] api.get_features() Exception. -> %s', ex)
 
     #rooms
     room_info = {}
 
-    for room in api._rooms:
-        r = BestinRoom(room, api)
+    for room in api.rooms:
+        r = RoomService(room, api)
 
-        if DT_LIGHT in api._devices:
-            await r.lightState()
+        if DT_LIGHT in api.devices:
+            await r.fetch_light_state()
 
-        if DT_OUTLET in api._devices:
+        if DT_OUTLET in api.devices:
             if room != 'l':
-                await r.outletState()
+                await r.fetch_outlet_state()
 
         room_info[room] = r
 
     hass.data[DOMAIN]["room"][entry.entry_id] = room_info
 
-    #thermostat
-    if DT_CLIMATE in api._devices:
-        thermostat = BestinThermostat(api)
+    if DT_CLIMATE in api.devices:
+        thermostat = ThermostatService(api)
 
-        await thermostat.thermostatState()
+        await thermostat.fetch_state()
 
         hass.data[DOMAIN]['thermostat'][entry.entry_id] = thermostat
 
@@ -96,27 +94,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     # MULTI
     # default sensor : login + sync
     platforms = ['sensor', 'switch']
-    
-    #await hass.config_entries.async_forward_entry_setups(entry, ['sensor'])
-    #await hass.config_entries.async_forward_entry_setups(entry, ['switch'])
 
-    # SINGLE
-    if DT_LIGHT in api._devices:
+    if DT_LIGHT in api.devices:
         platforms += ['light']
-        #await hass.config_entries.async_forward_entry_setups(entry, ['light'])
 
-    if DT_CLIMATE in api._devices:
+    if DT_CLIMATE in api.devices:
         platforms += ['climate']
-        #await hass.config_entries.async_forward_entry_setups(entry, ['climate'])
 
-    if DT_FAN in api._devices:
+    if DT_FAN in api.devices:
         platforms += ['fan']
-        #await hass.config_entries.async_forward_entry_setup(entry, ['fan'])
 
-    #button
-    if DT_LIGHT in api._devices or DT_GAS in api._devices:
+    if DT_LIGHT in api.devices or DT_GAS in api.devices:
         platforms += ['button']
-        #await hass.config_entries.async_forward_entry_setup(entry, ['button'])
 
     # async forward entry setups
     await hass.config_entries.async_forward_entry_setups(entry, platforms)
@@ -125,7 +114,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     async def room_light_all_off(service):
         room = service.data["room"]
 
-        await api._lightAllOff(room)
+        await api.light_all_off(room)
 
     hass.services.async_register(DOMAIN, "room_light_all_off", room_light_all_off)
 
@@ -134,7 +123,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         addr = service.data["address"]
         dir  = service.data["direction"]
 
-        await api._callElevator(addr, dir)
+        await api.call_elevator(addr, dir)
 
     hass.services.async_register(DOMAIN, "call_elevator", call_elevator)
 
