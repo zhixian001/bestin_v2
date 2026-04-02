@@ -945,4 +945,3 @@ class BestinFanSyncSensor(CoordinatorEntity, SensorEntity):
             'model': MODEL,
             'sw_version': SW_VERSION
         }
-

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict
 
-from ..const import ACCESS_TOKEN, TIMEOUT_SEC
+from ..const import ACCESS_TOKEN, LOGIN_BODY, TIMEOUT_SEC
 from .token_store import TokenStore
 
 USER_AGENT = (
@@ -58,7 +58,7 @@ class BestinHttpClient:
         )
 
     async def post_with_api_key(self, url: str, api_key: str) -> Any:
-        """API-key authenticated POST (login)."""
+        """API-key authenticated POST (login) — Legacy mode."""
         headers = {
             **self._base_headers(),
             "Content-Type": "application/json",
@@ -66,6 +66,20 @@ class BestinHttpClient:
         }
         return await self._session.post(
             url, headers=headers, timeout=TIMEOUT_SEC,
+        )
+
+    async def post_with_dual_auth(
+        self, url: str, auth_token: str, api_key: str,
+    ) -> Any:
+        """Authorization + X-API-KEY dual-header POST (login)."""
+        headers = {
+            **self._base_headers(),
+            "Content-Type": "application/json",
+            "Authorization": auth_token,
+            "X-API-KEY": api_key,
+        }
+        return await self._session.post(
+            url, headers=headers, data=LOGIN_BODY, timeout=TIMEOUT_SEC,
         )
 
     async def get_with_auth(self, url: str, auth_token: str) -> Any:

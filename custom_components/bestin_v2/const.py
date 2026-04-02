@@ -5,6 +5,7 @@ CONF_URL   = 'url'
 CONF_UUID  = 'uuid'
 CONF_ROOMS = 'rooms'
 CONF_DEVICES = 'devices'
+CONF_API_KEY = 'api_key'
 
 CONF_THER_INTVL   = 't_interval'
 CONF_ROOM_INTVL   = 'r_interval'
@@ -21,6 +22,7 @@ SW_VERSION = '1.0.0'
 BESTIN_TOKEN = 'bestin_token.json'
 ACCESS_TOKEN = 'access-token'
 TIMEOUT_SEC  = 60
+LOGIN_BODY   = 'V2'
 
 _ROOMS = {
     'l' : 'living',

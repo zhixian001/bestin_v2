@@ -11,7 +11,7 @@ from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 from homeassistant.const import (CONF_SCAN_INTERVAL, CONF_PASSWORD)
 
-from .const import DOMAIN, CONF_URL, CONF_UUID, CONF_ROOMS, CONF_DEVICES, _ROOMS, _ROOMS_R, _LIMIT, _ACTIONS, _DEVICES, BESTIN_TOKEN, CONF_THER_INTVL, CONF_ROOM_INTVL, CONF_R_LIGHT_INTVL, CONF_R_OUTLET_INTVL, CONF_ENERGY_INTVL, CONF_GAS_INTVL, CONF_FAN_INTVL
+from .const import DOMAIN, CONF_URL, CONF_UUID, CONF_API_KEY, CONF_ROOMS, CONF_DEVICES, _ROOMS, _ROOMS_R, _LIMIT, _ACTIONS, _DEVICES, BESTIN_TOKEN, CONF_THER_INTVL, CONF_ROOM_INTVL, CONF_R_LIGHT_INTVL, CONF_R_OUTLET_INTVL, CONF_ENERGY_INTVL, CONF_GAS_INTVL, CONF_FAN_INTVL
 from .services import login
 
 _LOGGER = logging.getLogger(__name__)
@@ -37,6 +37,7 @@ class BestinV2ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Initialize flow."""
         self._url:  Required[str] = None
         self._uuid: Required[str] = None
+        self._api_key:    Optional[str] = None
         self._site_nm:    Optional[str] = None
         self._identifier: Optional[str] = None
 
@@ -86,6 +87,7 @@ class BestinV2ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         schema = vol.Schema(
             {
                 vol.Required(CONF_UUID,  default=None): cv.string,
+                vol.Optional(CONF_API_KEY, default=''): cv.string,
             }
         )
 
@@ -95,17 +97,18 @@ class BestinV2ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     step_id="login", data_schema=schema, errors=errors or {}
                 )
 
-
             if user_input is not None:
                 session = async_create_clientsession(self.hass)
 
-                res = await login(session, user_input['uuid'])
+                input_api_key = user_input.get(CONF_API_KEY) or None
+                res = await login(session, user_input['uuid'], input_api_key)
 
                 if res.status == 200:
                     json_login = await res.json()
 
                     self._url        = json_login['url']
                     self._uuid       = user_input['uuid']
+                    self._api_key    = input_api_key
                     self._site_nm    = json_login['site_name']
                     self._identifier = json_login['identifier']
 
@@ -113,7 +116,6 @@ class BestinV2ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 else:
                     _LOGGER.error(f'[{DOMAIN}] async_step_login() Failed, %s', res)
                     return self.async_abort(reason="login_failed")
-                    #return await self.async_step_login(error='no_uuid')
 
         if user_input is None:
             return self.async_show_form(
@@ -150,6 +152,7 @@ class BestinV2ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             {
                 vol.Required(CONF_URL,   default=self._url): cv.string,
                 vol.Required(CONF_UUID,  default=self._uuid): cv.string,
+                vol.Optional(CONF_API_KEY, default=self._api_key or ''): cv.string,
                 vol.Required(CONF_ROOMS, default=[]): cv.multi_select(MS_ROOMS),
                 vol.Required(CONF_DEVICES,        default=[]): cv.multi_select(_DEVICES),
                 vol.Required(CONF_THER_INTVL,     default=300): cv.positive_int,
