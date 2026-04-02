@@ -1,11 +1,4 @@
-"""BESTIN Smart Home v2 API Services.
-
-Architecture:
-  - BestinApiService: Core API (NestJS Service pattern)
-  - RoomService: Per-room device control
-  - ThermostatService: Climate control
-  - login(): Standalone auth for config_flow
-"""
+"""BESTIN Smart Home v2 핵심 API 서비스."""
 from __future__ import annotations
 
 import json
@@ -14,50 +7,26 @@ from typing import Any, Dict, List
 
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .const import (
+from ..const import (
     DOMAIN, CONF_URL, CONF_UUID, CONF_ROOMS, CONF_DEVICES,
-    _ROOMS, BESTIN_TOKEN,
+    BESTIN_TOKEN, TIMEOUT_SEC,
     _LOGIN_URL, _FEATURES_URL, _VALLEY_URL, _CTRL_URL,
     _ENERGY_URL, _ELEV_URL, _SITE_INFO_URL,
 )
-from .dto import (
-    FeatureType, DeviceState, CommandPayload, ElevatorPayload,
-    LoginResult, BestinApiException,
+from ..core import (
+    BestinHttpClient, TokenStore, USER_AGENT,
+    CommandPayload, ElevatorPayload, LoginResult,
+    FeatureType, DeviceState, BestinApiException,
+    parse_units, parse_features,
 )
-from .http_client import BestinHttpClient, TokenStore, USER_AGENT
 
 _LOGGER = logging.getLogger(__name__)
 
 
-# ── Utility Functions ──────────────────────────────────────────────
-
-def ensure_list(value: Any) -> List[Any]:
-    if not value:
-        return []
-    return value if isinstance(value, list) else [value]
-
-
-def parse_units(response: Dict[str, Any]) -> Dict[str, str]:
-    units = response.get("units")
-    if not units:
-        return {}
-    return {u["unit"]: u["state"] for u in units}
-
-
-def parse_features(response: Dict[str, Any]) -> Dict[str, int]:
-    return {
-        ft["name"]: ft["quantity"]
-        for ft in response.get("features", [])
-        if ft["quantity"] > 0
-    }
-
-
-# ── Standalone Login (config_flow 호환) ────────────────────────────
-
 async def login(session: Any, uuid: str) -> Any:
-    from .const import TIMEOUT_SEC
-
+    """config_flow 에서 사용하는 standalone 로그인 함수."""
     headers = {
         "Content-Type": "application/json",
         "X-API-KEY": uuid,
@@ -65,7 +34,9 @@ async def login(session: Any, uuid: str) -> Any:
     }
 
     try:
-        response = await session.post(_LOGIN_URL, headers=headers, timeout=TIMEOUT_SEC)
+        response = await session.post(
+            _LOGIN_URL, headers=headers, timeout=TIMEOUT_SEC,
+        )
     except Exception as ex:
         _LOGGER.error("[%s] login() exception: %s", DOMAIN, ex)
         raise BestinApiException("Login network error", detail=ex) from ex
@@ -74,17 +45,20 @@ async def login(session: Any, uuid: str) -> Any:
         _LOGGER.debug("[%s] login() success", DOMAIN)
     elif response.status == 500:
         res_json = await response.json()
-        _LOGGER.error("[%s] login() failed(500): %s", DOMAIN, res_json.get("err"))
+        _LOGGER.error(
+            "[%s] login() failed(500): %s", DOMAIN, res_json.get("err"),
+        )
     else:
         _LOGGER.error("[%s] login() failed(%d)", DOMAIN, response.status)
 
     return response
 
 
-# ── BestinApiService ───────────────────────────────────────────────
-
 class BestinApiService:
-    """Core API service for BESTIN Smart Home v2."""
+    """BESTIN Smart Home v2 핵심 API 서비스.
+
+    HomeAssistant 컨텍스트에서 디바이스 상태 조회 및 명령을 처리한다.
+    """
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry):
         self._hass = hass
@@ -96,7 +70,10 @@ class BestinApiService:
         self.devices: List[str] = entry.data[CONF_DEVICES]
 
         self.token_store = TokenStore()
-        self.http = BestinHttpClient(hass, self.token_store)
+        self.http = BestinHttpClient(
+            session_factory=lambda: async_get_clientsession(hass),
+            token_store=self.token_store,
+        )
 
         self.gas: Dict[str, str] = {}
         self.fan: Dict[str, str] = {}
@@ -116,7 +93,9 @@ class BestinApiService:
 
     async def do_login(self) -> LoginResult:
         try:
-            response = await self.http.post_with_api_key(_LOGIN_URL, self.uuid)
+            response = await self.http.post_with_api_key(
+                _LOGIN_URL, self.uuid,
+            )
         except Exception as ex:
             _LOGGER.error("[%s] do_login() exception: %s", DOMAIN, ex)
             return LoginResult.fail("network fail")
@@ -130,11 +109,15 @@ class BestinApiService:
 
         if response.status == 500:
             error = await response.json()
-            _LOGGER.error("[%s] do_login() failed(500): %s", DOMAIN, error.get("err"))
+            _LOGGER.error(
+                "[%s] do_login() failed(500): %s", DOMAIN, error.get("err"),
+            )
             return LoginResult.fail("server error")
 
         error = await response.json()
-        _LOGGER.error("[%s] do_login() failed(%d): %s", DOMAIN, response.status, error)
+        _LOGGER.error(
+            "[%s] do_login() failed(%d): %s", DOMAIN, response.status, error,
+        )
         return LoginResult.fail("login failed")
 
     # ── Debug ──────────────────────────────────────────────────────
@@ -179,7 +162,9 @@ class BestinApiService:
             res = await self.http.get_with_auth(_VALLEY_URL, self.uuid)
         except Exception as ex:
             _LOGGER.error("[%s] get_valley() exception: %s", DOMAIN, ex)
-            raise BestinApiException("Valley request failed", detail=ex) from ex
+            raise BestinApiException(
+                "Valley request failed", detail=ex,
+            ) from ex
 
         if res.status == 500:
             text = await res.text()
@@ -200,11 +185,16 @@ class BestinApiService:
 
         if res.status == 500:
             text = await res.text()
-            _LOGGER.error("[%s] get_state(%s, %s) error(500): %s", DOMAIN, feature, room, text)
+            _LOGGER.error(
+                "[%s] get_state(%s, %s) error(500): %s",
+                DOMAIN, feature, room, text,
+            )
 
         data = await res.json()
         if self.debug:
-            _LOGGER.debug("[%s] get_state(%s, %s): %s", DOMAIN, feature, room, data)
+            _LOGGER.debug(
+                "[%s] get_state(%s, %s): %s", DOMAIN, feature, room, data,
+            )
 
         return parse_units(data)
 
@@ -217,7 +207,7 @@ class BestinApiService:
         url = f"{self.url}{uri}"
 
         payload = CommandPayload(unit=unit, state=state)
-        is_ventil = (feature == FeatureType.VENTIL)
+        is_ventil = feature == FeatureType.VENTIL
         data = payload.to_dict(include_mode=is_ventil)
 
         res = await self.http.put(url, data)
@@ -236,7 +226,9 @@ class BestinApiService:
     async def set_hvac_temperature(
         self, room: str, action: str, temp: str, cur_temp: str,
     ) -> None:
-        await self.send_command("thermostat", room, f"{action}/{temp}/{cur_temp}")
+        await self.send_command(
+            "thermostat", room, f"{action}/{temp}/{cur_temp}",
+        )
 
     # ── Light ──────────────────────────────────────────────────────
 
@@ -254,7 +246,9 @@ class BestinApiService:
 
     # ── Outlet ─────────────────────────────────────────────────────
 
-    async def outlet_on_off(self, room: str, unit: str, state: str) -> None:
+    async def outlet_on_off(
+        self, room: str, unit: str, state: str,
+    ) -> None:
         await self.send_command("electric", unit, state, room)
 
     # ── Ventilator ─────────────────────────────────────────────────
@@ -299,108 +293,13 @@ class BestinApiService:
     async def call_elevator(self, address: str, direction: str) -> None:
         url = f"{self.url}{_ELEV_URL}"
         payload = ElevatorPayload(address=address, direction=direction)
-        res = await self.http.post_with_auth(url, self.uuid, payload.to_dict())
+        res = await self.http.post_with_auth(
+            url, self.uuid, payload.to_dict(),
+        )
 
         if res.status == 500:
             error = await res.json()
-            _LOGGER.error("[%s] call_elevator() failed(500): %s", DOMAIN, error.get("err"))
-
-
-# Backward compatibility alias
-BestinAPIv2 = BestinApiService
-
-
-# ── RoomService ────────────────────────────────────────────────────
-
-class RoomService:
-    """Per-room device state & control service."""
-
-    def __init__(self, room: str, api: BestinApiService):
-        self.room = room
-        self.room_desc: str = _ROOMS[room]
-        self._api = api
-
-        self.lights: Dict[str, str] = {}
-        self.outlets: Dict[str, str] = {}
-
-    # ── Light ──────────────────────────────────────────────────────
-
-    async def fetch_light_state(self) -> None:
-        feature = "livinglight" if self.room == "l" else "light"
-        room_param = "1" if self.room == "l" else self.room
-        self.lights = await self._api.get_state(feature, room_param)
-
-    async def fetch_dimming_light_state(self) -> None:
-        feature = "dimming_livinglight" if self.room == "l" else "dimming_light"
-        room_param = "1" if self.room == "l" else self.room
-        self.lights = await self._api.get_state(feature, room_param)
-
-    async def light_on(self, switch: str) -> None:
-        await self._api.light_on_off(self.room, switch, DeviceState.ON)
-
-    async def light_off(self, switch: str) -> None:
-        await self._api.light_on_off(self.room, switch, DeviceState.OFF)
-
-    def is_light_on(self, switch: str) -> str:
-        return self.lights[switch]
-
-    # ── Outlet ─────────────────────────────────────────────────────
-
-    async def fetch_outlet_state(self) -> None:
-        self.outlets = await self._api.get_state("electric", self.room)
-
-    async def outlet_on(self, switch: str) -> None:
-        await self._api.outlet_on_off(self.room, switch, DeviceState.ON)
-
-    async def outlet_off(self, switch: str) -> None:
-        await self._api.outlet_on_off(self.room, switch, DeviceState.OFF)
-
-    async def outlet_set(self, switch: str) -> None:
-        await self._api.outlet_on_off(self.room, switch, DeviceState.SET)
-
-    async def outlet_unset(self, switch: str) -> None:
-        await self._api.outlet_on_off(self.room, switch, DeviceState.UNSET)
-
-    def is_outlet_on(self, switch: str) -> str:
-        return self.outlets[switch]
-
-
-# Backward compatibility alias
-BestinRoom = RoomService
-
-
-# ── ThermostatService ──────────────────────────────────────────────
-
-class ThermostatService:
-    """Thermostat state & control service."""
-
-    def __init__(self, api: BestinApiService):
-        self._api = api
-        self.thermostats: Dict[str, str] = {}
-
-    def _parse_field(self, room: str, index: int) -> str:
-        return self.thermostats[room].split("/")[index]
-
-    async def fetch_state(self) -> None:
-        self.thermostats = await self._api.get_state("thermostat")
-
-    async def set_hvac_mode(self, room: str, action: str, target_temp: str) -> None:
-        await self._api.set_hvac_mode(room, action, target_temp)
-
-    async def set_hvac_temperature(
-        self, room: str, action: str, target_temp: str, cur_temp: str,
-    ) -> None:
-        await self._api.set_hvac_temperature(room, action, target_temp, cur_temp)
-
-    def is_on(self, room: str) -> str:
-        return self._parse_field(room, 0)
-
-    def get_target_temp(self, room: str) -> str:
-        return self._parse_field(room, 1)
-
-    def get_current_temp(self, room: str) -> str:
-        return self._parse_field(room, 2)
-
-
-# Backward compatibility alias
-BestinThermostat = ThermostatService
+            _LOGGER.error(
+                "[%s] call_elevator() failed(500): %s",
+                DOMAIN, error.get("err"),
+            )

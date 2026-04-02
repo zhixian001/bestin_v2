@@ -1,12 +1,13 @@
-"""DTOs and type definitions for BESTIN Smart Home v2 API."""
+"""Data transfer objects and enums for BESTIN API."""
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict
 from enum import Enum
+from typing import Any, Dict
 
 
 class FeatureType(str, Enum):
+    """디바이스 feature 식별자."""
     LIGHT = "light"
     LIVING_LIGHT = "livinglight"
     DIMMING_LIGHT = "dimming_light"
@@ -18,6 +19,7 @@ class FeatureType(str, Enum):
 
 
 class DeviceState(str, Enum):
+    """디바이스 상태 값."""
     ON = "on"
     OFF = "off"
     SET = "set"
@@ -27,6 +29,7 @@ class DeviceState(str, Enum):
 
 @dataclass
 class CommandPayload:
+    """디바이스 명령 요청 DTO."""
     unit: str
     state: str
     mode: str = ""
@@ -42,6 +45,7 @@ class CommandPayload:
 
 @dataclass
 class ElevatorPayload:
+    """엘리베이터 호출 요청 DTO."""
     address: str
     direction: str
 
@@ -51,6 +55,7 @@ class ElevatorPayload:
 
 @dataclass
 class LoginResult:
+    """로그인 응답 DTO."""
     success: bool
     data: Any = None
 
@@ -61,13 +66,3 @@ class LoginResult:
     @staticmethod
     def fail(reason: str = "unknown") -> LoginResult:
         return LoginResult(success=False, data=reason)
-
-
-class BestinApiException(Exception):
-    """NestJS HttpException style custom exception."""
-
-    def __init__(self, message: str, status_code: int = 500, detail: Any = None):
-        self.message = message
-        self.status_code = status_code
-        self.detail = detail
-        super().__init__(self.message)

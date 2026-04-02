@@ -1,17 +1,10 @@
-"""HTTP client and token storage for BESTIN API (NestJS HttpService pattern)."""
+"""BESTIN API HTTP 클라이언트 (HA aiohttp 세션 기반)."""
 from __future__ import annotations
 
-import json
-import logging
-import os
-from typing import Any, Dict
+from typing import Any, Callable, Dict
 
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
-
-from .const import DOMAIN, BESTIN_TOKEN, ACCESS_TOKEN, TIMEOUT_SEC
-
-_LOGGER = logging.getLogger(__name__)
+from ..const import ACCESS_TOKEN, TIMEOUT_SEC
+from .token_store import TokenStore
 
 USER_AGENT = (
     "mozilla/5.0 (windows nt 10.0; win64; x64) "
@@ -20,51 +13,26 @@ USER_AGENT = (
 )
 
 
-class TokenStore:
-    """Token persistence layer (Repository pattern)."""
-
-    def __init__(self, path: str = BESTIN_TOKEN):
-        self._path = path
-
-    def exists(self) -> bool:
-        return os.path.isfile(self._path)
-
-    def read(self) -> Dict[str, Any]:
-        try:
-            with open(self._path, "r") as f:
-                return json.load(f)
-        except Exception as ex:
-            _LOGGER.error(
-                "[%s] TokenStore.read() - %s 읽기 실패: %s",
-                DOMAIN, self._path, ex,
-            )
-            return {}
-
-    def save(self, data: Dict[str, Any]) -> bool:
-        try:
-            with open(self._path, "w") as f:
-                json.dump(data, f, sort_keys=True, indent=1)
-            return True
-        except Exception:
-            return False
-
-
 class BestinHttpClient:
-    """Centralized HTTP client (NestJS HttpService pattern).
+    """인증 전략별 HTTP 메서드를 제공하는 클라이언트.
 
     Auth strategies:
-      - Token auth: access-token header from TokenStore (get/put)
-      - API key auth: X-API-KEY header (login)
-      - UUID auth: Authorization header (valley/elevator)
+      - Token: access-token 헤더 (get/put)
+      - API Key: X-API-KEY 헤더 (login)
+      - UUID: Authorization 헤더 (valley/elevator)
     """
 
-    def __init__(self, hass: HomeAssistant, token_store: TokenStore):
-        self._hass = hass
+    def __init__(
+        self,
+        session_factory: Callable[[], Any],
+        token_store: TokenStore,
+    ):
+        self._session_factory = session_factory
         self._token_store = token_store
 
     @property
-    def _session(self):
-        return async_get_clientsession(self._hass)
+    def _session(self) -> Any:
+        return self._session_factory()
 
     def _base_headers(self) -> Dict[str, str]:
         return {"User-Agent": USER_AGENT}
@@ -90,7 +58,7 @@ class BestinHttpClient:
         )
 
     async def post_with_api_key(self, url: str, api_key: str) -> Any:
-        """API-key authenticated POST (for login)."""
+        """API-key authenticated POST (login)."""
         headers = {
             **self._base_headers(),
             "Content-Type": "application/json",
@@ -101,7 +69,7 @@ class BestinHttpClient:
         )
 
     async def get_with_auth(self, url: str, auth_token: str) -> Any:
-        """Authorization-header GET (for valley)."""
+        """Authorization-header GET (valley)."""
         headers = {
             **self._base_headers(),
             "Content-Type": "application/json",
@@ -114,7 +82,7 @@ class BestinHttpClient:
     async def post_with_auth(
         self, url: str, auth_token: str, data: Dict[str, Any],
     ) -> Any:
-        """Authorization-header POST (for elevator)."""
+        """Authorization-header POST (elevator)."""
         headers = {
             **self._base_headers(),
             "Content-Type": "application/json",

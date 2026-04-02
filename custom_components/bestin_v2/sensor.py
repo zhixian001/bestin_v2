@@ -25,7 +25,7 @@ from homeassistant.util import Throttle
 
 from .const import DOMAIN, CONF_URL, CONF_UUID, CONF_ROOMS, _ROOMS, MODEL, SW_VERSION, BESTIN_TOKEN, _ENERGY, CONF_GAS_INTVL, CONF_FAN_INTVL, CONF_R_LIGHT_INTVL, CONF_R_OUTLET_INTVL
 from .const import _R_ICON, DT_LIGHT, DT_OUTLET, DT_CLIMATE, DT_FAN, DT_GAS, DT_ENERGY
-from .bestinAPIv2 import BestinApiService as API
+from .services import BestinApiService as API
 
 _ICONS = {
     'thermostat': 'mdi:thermostat',

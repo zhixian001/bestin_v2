@@ -19,9 +19,9 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.util import Throttle
 
 from .const import DOMAIN, CONF_URL, CONF_UUID, CONF_ROOMS, DT_LIGHT, DT_OUTLET, DT_CLIMATE, DT_FAN, DT_GAS, DT_ENERGY
-from .bestinAPIv2 import BestinApiService as API
-from .bestinAPIv2 import RoomService
-from .bestinAPIv2 import ThermostatService
+from .services import BestinApiService as API
+from .services import RoomService
+from .services import ThermostatService
 
 PLATFORMS = ['sensor', 'light', 'climate', 'switch', 'fan', 'button']
 

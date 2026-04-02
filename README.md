@@ -33,14 +33,14 @@ RS485통신이 가능하다면, 네이버 HA카페의 halwin님의 Component를 
 <br>
 
 ## Installation
-[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=miumida&repository=bestin_v2&category=Integration)
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=zhixian001&repository=bestin_v2&category=Integration)
 ### Manual
 - HA 설치 경로 아래 custom_components에 bestin_v2폴더 안의 전체 파일을 복사해줍니다.<br>
   `<config directory>/custom_components/bestin_v2/`<br>
 - Home-Assistant 를 재시작합니다<br>
 ### HACS
 - HACS > Integretions > 우측상단 메뉴 > Custom repositories 선택
-- 'https://github.com/miumida/bestin_v2' 주소 입력, Category에 'integration' 선택 후, 저장
+- 'https://github.com/zhixian001/bestin_v2' 주소 입력, Category에 'integration' 선택 후, 저장
 - HACS > Integretions 메뉴 선택 후, BESTIN v2 검색하여 설치
 
 <br>

@@ -12,7 +12,7 @@ from homeassistant.helpers.aiohttp_client import async_create_clientsession
 from homeassistant.const import (CONF_SCAN_INTERVAL, CONF_PASSWORD)
 
 from .const import DOMAIN, CONF_URL, CONF_UUID, CONF_ROOMS, CONF_DEVICES, _ROOMS, _ROOMS_R, _LIMIT, _ACTIONS, _DEVICES, BESTIN_TOKEN, CONF_THER_INTVL, CONF_ROOM_INTVL, CONF_R_LIGHT_INTVL, CONF_R_OUTLET_INTVL, CONF_ENERGY_INTVL, CONF_GAS_INTVL, CONF_FAN_INTVL
-from .bestinAPIv2 import login
+from .services import login
 
 _LOGGER = logging.getLogger(__name__)
 
