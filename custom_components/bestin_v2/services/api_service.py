@@ -10,8 +10,8 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from ..const import (
-    DOMAIN, CONF_URL, CONF_UUID, CONF_ROOMS, CONF_DEVICES,
-    BESTIN_TOKEN, TIMEOUT_SEC,
+    DOMAIN, CONF_URL, CONF_UUID, CONF_API_KEY, CONF_ROOMS, CONF_DEVICES,
+    BESTIN_TOKEN, TIMEOUT_SEC, LOGIN_BODY,
     _LOGIN_URL, _FEATURES_URL, _VALLEY_URL, _CTRL_URL,
     _ENERGY_URL, _ELEV_URL, _SITE_INFO_URL,
 )
@@ -25,17 +25,31 @@ from ..core import (
 _LOGGER = logging.getLogger(__name__)
 
 
-async def login(session: Any, uuid: str) -> Any:
-    """config_flow 에서 사용하는 standalone 로그인 함수."""
-    headers = {
-        "Content-Type": "application/json",
-        "X-API-KEY": uuid,
-        "User-Agent": USER_AGENT,
-    }
+async def login(session: Any, uuid: str, api_key: str | None = None) -> Any:
+    """config_flow 에서 사용하는 standalone 로그인 함수.
+
+    api_key 가 주어지면 Authorization + X-API-KEY 이중 헤더 모드,
+    없으면 기존 X-API-KEY 단일 모드로 동작한다.
+    """
+    if api_key:
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": uuid,
+            "X-API-KEY": api_key,
+            "User-Agent": USER_AGENT,
+        }
+        kwargs: dict[str, Any] = {"data": LOGIN_BODY}
+    else:
+        headers = {
+            "Content-Type": "application/json",
+            "X-API-KEY": uuid,
+            "User-Agent": USER_AGENT,
+        }
+        kwargs = {}
 
     try:
         response = await session.post(
-            _LOGIN_URL, headers=headers, timeout=TIMEOUT_SEC,
+            _LOGIN_URL, headers=headers, timeout=TIMEOUT_SEC, **kwargs,
         )
     except Exception as ex:
         _LOGGER.error("[%s] login() exception: %s", DOMAIN, ex)
@@ -66,6 +80,7 @@ class BestinApiService:
 
         self.url: str = entry.data[CONF_URL]
         self.uuid: str = entry.data[CONF_UUID]
+        self.api_key: str | None = entry.data.get(CONF_API_KEY) or None
         self.rooms: List[str] = entry.data[CONF_ROOMS]
         self.devices: List[str] = entry.data[CONF_DEVICES]
 
@@ -93,9 +108,14 @@ class BestinApiService:
 
     async def do_login(self) -> LoginResult:
         try:
-            response = await self.http.post_with_api_key(
-                _LOGIN_URL, self.uuid,
-            )
+            if self.api_key:
+                response = await self.http.post_with_dual_auth(
+                    _LOGIN_URL, self.uuid, self.api_key,
+                )
+            else:
+                response = await self.http.post_with_api_key(
+                    _LOGIN_URL, self.uuid,
+                )
         except Exception as ex:
             _LOGGER.error("[%s] do_login() exception: %s", DOMAIN, ex)
             return LoginResult.fail("network fail")
