@@ -25,7 +25,7 @@ from homeassistant.util import Throttle
 
 from .const import DOMAIN, CONF_URL, CONF_UUID, CONF_ROOMS, _ROOMS, MODEL, SW_VERSION, BESTIN_TOKEN, _ENERGY, CONF_GAS_INTVL, CONF_FAN_INTVL, CONF_R_LIGHT_INTVL, CONF_R_OUTLET_INTVL
 from .const import _R_ICON, DT_LIGHT, DT_OUTLET, DT_CLIMATE, DT_FAN, DT_GAS, DT_ENERGY
-from .bestinAPIv2 import BestinAPIv2 as API
+from .services import BestinApiService as API
 
 _ICONS = {
     'thermostat': 'mdi:thermostat',
@@ -60,7 +60,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
         try:
             # handled by the data update coordinator.
             async with async_timeout.timeout(POLLING_TIMEOUT_SEC):
-                data = await api._getEnergy()
+                data = await api.get_energy()
 
                 rtn = {}
 
@@ -77,7 +77,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
         except Exception as err:
             raise UpdateFailed(f"[{DOMAIN}] Error communicating with API: {err}")
 
-    if DT_ENERGY in api._devices:
+    if DT_ENERGY in api.devices:
         coordinatorEnergy = DataUpdateCoordinator(
             hass,
             _LOGGER,
@@ -116,25 +116,25 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
                     dt = datetime.now()
                     syncdate = dt.strftime("%Y-%m-%d %H:%M:%S")
 
-                    await rooms[room].lightState()
+                    await rooms[room].fetch_light_state()
 
                     # on count
                     on = 0
 
-                    light = rooms[room]._lights
+                    light = rooms[room].lights
 
                     for key in light:
                         val = light[key]
                         if 'on' in val:
                             on = on + 1
 
-                    data[room] = { 'lights' : rooms[room]._lights, 'on_light': on, 'syncdate' : syncdate }
+                    data[room] = { 'lights' : rooms[room].lights, 'on_light': on, 'syncdate' : syncdate }
 
                 return data
         except Exception as err:
             raise UpdateFailed(f"[{DOMAIN}] Error communicating with API: {err}")
 
-    if DT_LIGHT in api._devices:
+    if DT_LIGHT in api.devices:
         coordinatorRoom = DataUpdateCoordinator(
             hass,
             _LOGGER,
@@ -163,25 +163,25 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
                     syncdate = dt.strftime("%Y-%m-%d %H:%M:%S")
 
                     if room != 'l':
-                        await rooms[room].outletState()
+                        await rooms[room].fetch_outlet_state()
 
                     # on count
                     on = 0
 
-                    outlet = rooms[room]._outlets
+                    outlet = rooms[room].outlets
 
                     for key in outlet:
                         val = outlet[key]
                         if 'on' in val:
                             on = on + 1
 
-                    data[room] = { 'outlets' : rooms[room]._outlets, 'on_outlet': on, 'syncdate' : syncdate }
+                    data[room] = { 'outlets' : rooms[room].outlets, 'on_outlet': on, 'syncdate' : syncdate }
 
                 return data
         except Exception as err:
             raise UpdateFailed(f"[{DOMAIN}] Error communicating with API: {err}")
 
-    if DT_OUTLET in api._devices:
+    if DT_OUTLET in api.devices:
         coordinatorRoomOutlet = DataUpdateCoordinator(
             hass,
             _LOGGER,
@@ -203,7 +203,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 
 
     #= thermostat Sensor START ========================================================
-    if DT_CLIMATE in api._devices:
+    if DT_CLIMATE in api.devices:
         cli =  hass.data[DOMAIN]["thermostat"][config_entry.entry_id]
 
     async def async_update_data():
@@ -216,12 +216,12 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
             # Note: asyncio.TimeoutError and aiohttp.ClientError are already
             # handled by the data update coordinator.
             async with async_timeout.timeout(POLLING_TIMEOUT_SEC):
-                await cli.thermostatState()
+                await cli.fetch_state()
 
                 dt = datetime.now()
                 syncdate = dt.strftime("%Y-%m-%d %H:%M:%S")
 
-                data = cli._thermostats
+                data = cli.thermostats
                 on = 0
 
                 for key in data:
@@ -240,7 +240,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
         except ApiError as err:
             raise UpdateFailed(f"Error communicating with API: {err}")
 
-    if DT_CLIMATE in api._devices:
+    if DT_CLIMATE in api.devices:
         coordinator = DataUpdateCoordinator(
             hass,
             _LOGGER,
@@ -262,12 +262,12 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
             # Note: asyncio.TimeoutError and aiohttp.ClientError are already
             # handled by the data update coordinator.
             async with async_timeout.timeout(60):
-                await api._gasState()
+                await api.get_gas_state()
 
                 dt = datetime.now()
                 syncdate = dt.strftime("%Y-%m-%d %H:%M:%S")
 
-                data = api._gas
+                data = api.gas
 
                 data['syncdate'] = syncdate
 
@@ -275,7 +275,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
         except Exception as err:
             raise UpdateFailed(f"[{DOMAIN}] Error communicating with API: {err}")
 
-    if DT_GAS in api._devices:
+    if DT_GAS in api.devices:
         coordinatorGaslock = DataUpdateCoordinator(
             hass,
             _LOGGER,
@@ -298,12 +298,12 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
             # Note: asyncio.TimeoutError and aiohttp.ClientError are already
             # handled by the data update coordinator.
             async with async_timeout.timeout(60):
-                await api._ventilState()
+                await api.get_ventil_state()
 
                 dt = datetime.now()
                 syncdate = dt.strftime("%Y-%m-%d %H:%M:%S")
 
-                data = api._fan
+                data = api.fan
 
                 data['syncdate'] = syncdate
 
@@ -312,7 +312,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
             raise UpdateFailed(f"[{DOMAIN}] Error communicating with API: {err}")
 
     # FAN이 있는 경우만 추가
-    if DT_FAN in api._devices:
+    if DT_FAN in api.devices:
         coordinatorFan = DataUpdateCoordinator(
             hass,
             _LOGGER,
@@ -350,7 +350,7 @@ class LoginInfoSensor(Entity):
         self.data       = {}
 
         if self._api is not None:
-            self.data = self._api._getLoginInfo()
+            self.data = self._api.get_login_info()
 
         dt = datetime.now()
         self._syncdate = dt.strftime("%Y-%m-%d %H:%M:%S")
@@ -380,9 +380,9 @@ class LoginInfoSensor(Entity):
         if self._api is None:
             return
 
-        await self._api._login()
+        await self._api.do_login()
 
-        login = self._api._getLoginInfo()
+        login = self._api.get_login_info()
 
         self.data = login
 
@@ -397,7 +397,7 @@ class LoginInfoSensor(Entity):
 
         data = self.data
 
-        data['features'] = self._api._features
+        data['features'] = self._api.features
 
         data['syncdate'] = self._syncdate
 
@@ -454,10 +454,10 @@ class BestinRoomSensor(Entity):
         if self._api is None:
             return
 
-        await self._api.lightState()
+        await self._api.fetch_light_state()
 
         if self._room != 'l':
-            await self._api.outletState()
+            await self._api.fetch_outlet_state()
 
         dt = datetime.now()
         self._syncdate = dt.strftime("%Y-%m-%d %H:%M:%S")
@@ -468,8 +468,8 @@ class BestinRoomSensor(Entity):
         """Attributes."""
         data = {}
 
-        data['lights']  = self._api._lights
-        data['outlets'] = self._api._outlets
+        data['lights']  = self._api.lights
+        data['outlets'] = self._api.outlets
 
         data['syncdate'] = self._syncdate
 
@@ -493,7 +493,7 @@ class BestinClimateSensor(Entity):
         self.data       = {}
 
         if self._api is not None:
-            self.data = self._api._thermostats
+            self.data = self._api.thermostats
 
         dt = datetime.now()
         self._syncdate = dt.strftime("%Y-%m-%d %H:%M:%S")
@@ -525,9 +525,9 @@ class BestinClimateSensor(Entity):
         if self._api is None:
             return
 
-        await self._api.thermostatState()
+        await self._api.fetch_state()
 
-        cli = self._api._thermostats
+        cli = self._api.thermostats
 
         dt = datetime.now()
         self._syncdate = dt.strftime("%Y-%m-%d %H:%M:%S")

@@ -32,15 +32,15 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 
     room = hass.data[DOMAIN]["room"][config_entry.entry_id]
 
-    if DT_LIGHT in api._devices:
+    if DT_LIGHT in api.devices:
         for r in room:
-            if len(room[r]._lights) > 1:
+            if len(room[r].lights) > 1:
                 btn = RoomLightOffButton(r, api)
 
                 sensors += [btn]
 
     #gas
-    if DT_GAS in api._devices:
+    if DT_GAS in api.devices:
         gas = GasCloseButton(api)
 
         sensors += [gas]
@@ -72,7 +72,7 @@ class GasCloseButton(ButtonEntity):
 
     async def async_press(self) -> None:
         """Handle the button press."""
-        await self._api._gasLock()
+        await self._api.gas_lock()
 
     @property
     def device_info(self):
@@ -111,7 +111,7 @@ class RoomLightOffButton(ButtonEntity):
 
     async def async_press(self) -> None:
         """Handle the button press."""
-        await self._api._lightAllOff(self._room)
+        await self._api.light_all_off(self._room)
 
     @property
     def device_info(self):

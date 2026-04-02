@@ -42,8 +42,8 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     sensors = []
 
     for r in room:
-        for key in room[r]._lights:
-            sensors += [ BestinLight(r, key, room[r]._lights[key], room[r]) ]
+        for key in room[r].lights:
+            sensors += [ BestinLight(r, key, room[r].lights[key], room[r]) ]
 
     async_add_entities(sensors)
 
@@ -75,7 +75,7 @@ class BestinLight(LightEntity):
     def icon(self):
         """Icon to use in the frontend, if any."""
         #return 'mdi:lightbulb' #_ICONS[self._is_on]
-        return _ICONS[self._api.isLightOn(self._name)]
+        return _ICONS[self._api.is_light_on(self._name)]
 
     async def async_update(self):
         """Get the latest state of the sensor."""
@@ -90,40 +90,38 @@ class BestinLight(LightEntity):
         data['Device Room']  = self._room_dsc
         data['Device Type']  = self._name
         #data['Device State'] = self._is_on
-        data['Device State'] = self._api.isLightOn(self._name)
+        data['Device State'] = self._api.is_light_on(self._name)
 
         return data
 
     @property
     def is_on(self):
         """If the switch is currently on or off."""
-        #return self._is_on
-        return self._api.isLightOn(self._name)
+        return self._api.is_light_on(self._name)
 
     @property
     def state(self):
         """If the switch is currently on or off."""
-        #return self._is_on
-        return self._api.isLightOn(self._name)
+        return self._api.is_light_on(self._name)
 
 
     async def async_turn_on(self, **kwargs):
         """Turn the switch on."""
-        await self._api.lightOn(self._name)
+        await self._api.light_on(self._name)
 
         self._is_on = 'on'
 
-        await self._api.lightState()
+        await self._api.fetch_light_state()
 
         #_LOGGER.error(self._api._lights)
 
     async def async_turn_off(self, **kwargs):
         """Turn the switch off."""
-        await self._api.lightOff(self._name)
+        await self._api.light_off(self._name)
 
         self._is_on = 'off'
 
-        await self._api.lightState()
+        await self._api.fetch_light_state()
 
         #_LOGGER.error(self._api._lights)
 
